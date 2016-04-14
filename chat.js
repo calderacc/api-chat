@@ -25,18 +25,46 @@ http.listen(3000, function(){
 io.on('connection', function(socket){
     socket.on('message', function(message) {
 
-        // TODO: Datenbank abfragen und Nachrichtenkram zusammenstecken
-        io.emit('message', message);
+        queryMessageUser(message);
+
         saveMessageToDatabase(message);
     });
 });
 
-function extendMessage(message) {
-    message.timestamp = Date.now();
-    message.username = 'maltehuebner';
-    message.userColor = 'rgb(255, 255, 0)';
+function queryMessageUser(message) {
+    var query = null;
 
-    return message;
+    if (message.anonymousNameId) {
+        query = 'SELECT name FROM anonymous_name WHERE id = ' + message.anonymousNameId + ';';
+    }
+
+    if (message.userToken) {
+        query = 'SELECT username, colorRed, colorGreen, colorBlue FROM fos_user_user WHERE token = \'' + message.userToken + '\';';
+    }
+
+    runDatabaseQuery(query, extendMessage, message);
+}
+
+function extendMessage(rows, message) {
+    message.timestamp = Date.now();
+
+    var row = rows.pop();
+
+    if (row.name) {
+        message.username = row.name;
+        message.userColor = 'black';
+    }
+
+    if (row.username) {
+        message.username = row.username;
+        message.userColor = 'rgb(' + row.colorRed + ', ' + row.colorGreen + ', ' + row.colorBlue + ')';
+    }
+
+    broadcastMessage(message);
+}
+
+function broadcastMessage(message) {
+    io.emit('message', message);
 }
 
 function saveMessageToDatabase(message) {
@@ -47,7 +75,7 @@ function saveMessageToDatabase(message) {
     }
 
     if (message.anonymousNameId) {
-        userpart = 'anonymous_name_id = ' + anonymousNameId;
+        userpart = 'anonymous_name_id = ' + message.anonymousNameId;
     }
 
     if (userpart) {
@@ -59,14 +87,14 @@ function saveMessageToDatabase(message) {
     }
 }
 
-function runDatabaseQuery(queryString, callbackFunction) {
+function runDatabaseQuery(queryString, callbackFunction, argument) {
     mysqlConnectionPool.getConnection(function(err, connection) {
         connection.query('USE ' + config.database.dbname + ';', function(err, rows) {
             connection.query(queryString, function(err, rows) {
                 connection.release();
 
                 if (callbackFunction) {
-                    callbackFunction(rows);
+                    callbackFunction(rows, argument);
                 }
             });
         });
