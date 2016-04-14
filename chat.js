@@ -24,21 +24,39 @@ http.listen(3000, function(){
 
 io.on('connection', function(socket){
     socket.on('message', function(message) {
-        message.timestamp = Date.now();
-        message.username = 'maltehuebner';
-        message.userColor = 'rgb(255, 255, 0)';
 
+        // TODO: Datenbank abfragen und Nachrichtenkram zusammenstecken
         io.emit('message', message);
         saveMessageToDatabase(message);
     });
 });
 
+function extendMessage(message) {
+    message.timestamp = Date.now();
+    message.username = 'maltehuebner';
+    message.userColor = 'rgb(255, 255, 0)';
+
+    return message;
+}
+
 function saveMessageToDatabase(message) {
-    var query = 'INSERT INTO post SET user_id = (SELECT id FROM fos_user_user WHERE token = \'' + message.userToken + '\'), message = \'' + message.message + '\', dateTime = NOW(), enabled = 1, chat = 1;';
+    var userpart = null;
 
-    runDatabaseQuery(query, null);
+    if (message.userToken) {
+        userpart = 'user_id = (SELECT id FROM fos_user_user WHERE token = \'' + message.userToken + '\')';
+    }
 
-    console.log(query);
+    if (message.anonymousNameId) {
+        userpart = 'anonymous_name_id = ' + anonymousNameId;
+    }
+
+    if (userpart) {
+        var query = 'INSERT INTO post SET ' + userpart + ', message = \'' + message.message + '\', dateTime = NOW(), enabled = 1, chat = 1;';
+
+        runDatabaseQuery(query, null);
+
+        console.log(query);
+    }
 }
 
 function runDatabaseQuery(queryString, callbackFunction) {
