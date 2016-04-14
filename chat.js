@@ -39,7 +39,7 @@ function queryMessageUser(message) {
     }
 
     if (message.userToken) {
-        query = 'SELECT username, colorRed, colorGreen, colorBlue FROM fos_user_user WHERE token = \'' + message.userToken + '\';';
+        query = 'SELECT username, colorRed, colorGreen, colorBlue, MD5(email) AS gravatarHash FROM fos_user_user WHERE token = \'' + message.userToken + '\';';
     }
 
     runDatabaseQuery(query, extendMessage, message);
@@ -53,11 +53,13 @@ function extendMessage(rows, message) {
     if (row.name) {
         message.username = row.name;
         message.userColor = 'black';
+        message.gravatarHash = '?d=identicon&s=64';
     }
 
     if (row.username) {
         message.username = row.username;
         message.userColor = 'rgb(' + row.colorRed + ', ' + row.colorGreen + ', ' + row.colorBlue + ')';
+        message.gravatarHash = row.gravatarHash;
     }
 
     broadcastMessage(message);
