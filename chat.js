@@ -25,87 +25,99 @@ http.listen(3000, function(){
 var clients = [];
 
 io.on('connection', function(socket) {
-    io.sockets.on('connect', function(client) {
-        client.on('join', function(joinMessage) {
-            joinClient(client, joinMessage);
-        });
-
-        client.on('disconnect', function() {
-            disconnectClient(client);
-        });
+    socket.on('connect', function() {
+        socketConnect(socket);
     });
 
+    socket.on('join', function(joinMessage) {
+        socketJoin(socket, joinMessage);
+    });
+
+    /*socket.on('disconnect', function() {
+        socketDisconnect(socket);
+    });*/
+
     socket.on('message', function(message) {
-        handleMessage(client, message);
+        handleMessage(socket, message);
     });
 });
 
-function disconnectClient(client) {
-    clients.splice(clients.indexOf(client), 1);
+function socketConnect(socket) {
+    console.log('Socket connected');
 
-    console.log('disconnect');
+}
+function socketDisconnect(socket) {
+    //clients.splice(clients.indexOf(client), 1);
+
+    console.log('Socket disconnect');
 }
 
-function joinClient(client, joinMessage) {
-    client.userToken = joinMessage.userToken;
-    client.anonymousNameId = joinMessage.anonymousNameId;
+function socketJoin(socket, joinMessage) {
+    socket.userToken = joinMessage.userToken;
+    socket.anonymousNameId = joinMessage.anonymousNameId;
 
-    lookupClient(client);
+    lookupClient(socket);
 }
 
-function lookupClient(client) {
+function lookupClient(socket) {
     var query = null;
 
-    if (client.anonymousNameId) {
-        query = 'SELECT name FROM anonymous_name WHERE id = ' + client.anonymousNameId + ';';
+    if (socket.anonymousNameId) {
+        query = 'SELECT name FROM anonymous_name WHERE id = ' + socket.anonymousNameId + ';';
     }
 
-    if (client.userToken) {
-        query = 'SELECT username, colorRed, colorGreen, colorBlue, MD5(email) AS gravatarHash FROM fos_user_user WHERE token = \'' + client.userToken + '\';';
+    if (socket.userToken) {
+        query = 'SELECT username, colorRed, colorGreen, colorBlue, MD5(email) AS gravatarHash FROM fos_user_user WHERE token = \'' + socket.userToken + '\';';
     }
 
-    runDatabaseQuery(query, setupClient, client);
+    runDatabaseQuery(query, setupClient, socket);
 }
 
-function setupClient(rows, client) {
+function setupClient(rows, socket) {
     var row = rows.pop();
 
     if (row.name) {
-        client.username = row.name;
-        client.userColor = 'black';
-        client.gravatarHash = '?d=identicon&s=64';
+        socket.chat = {
+            username: row.name,
+            userColor: 'black',
+            gravatarHash: '?d=identicon&s=64'
+        };
     }
 
     if (row.username) {
-        client.username = row.username;
-        client.userColor = 'rgb(' + row.colorRed + ', ' + row.colorGreen + ', ' + row.colorBlue + ')';
-        client.gravatarHash = row.gravatarHash;
+        socket.chat = {
+            username: row.username,
+            userColor: 'rgb(' + row.colorRed + ', ' + row.colorGreen + ', ' + row.colorBlue + ')',
+            gravatarHash: row.gravatarHash
+        };
     }
 
-    broadcastJoinMessage(client);
+    broadcastJoinMessage(socket);
 }
 
-function broadcastJoinMessage(client) {
+function broadcastJoinMessage(socket) {
     var joinMessage = {
-        username: client.username,
+        username: socket.chat.username,
         dateTime: Date.now()
     };
 
-    console.log(client.username + ' joined');
+    console.log(socket.chat.username + ' joined');
     io.emit('joined', joinMessage);
 }
 
-function handleMessage(client, message) {
-    extendMessage(client, message);
-    broadcastMessage(client, message);
+function handleMessage(socket, message) {
+    extendMessage(socket, message);
+    broadcastMessage(socket, message);
 }
-function extendMessage(client, message) {
-    message.username = client.username;
-    message.userColor = client.userColor;
+
+function extendMessage(socket, message) {
+    message.username = socket.chat.username;
+    message.userColor = socket.chat.userColor;
+    message.gravatarHash = socket.chat.gravatarHash;
     message.timestamp = Date.now();
 }
 
-function broadcastMessage(message) {
+function broadcastMessage(socket, message) {
     io.emit('message', message);
 }
 
