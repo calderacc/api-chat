@@ -22,47 +22,87 @@ http.listen(3000, function(){
     console.log('listening on *:3000');
 });
 
-io.on('connection', function(socket){
+var clients = [];
+
+io.on('connection', function(socket) {
+    io.sockets.on('connect', function(client) {
+        client.on('join', function(joinMessage) {
+            joinClient(client, joinMessage);
+        });
+
+        client.on('disconnect', function() {
+            disconnectClient(client);
+        });
+    });
+
     socket.on('message', function(message) {
-
-        queryMessageUser(message);
-
-        saveMessageToDatabase(message);
+        handleMessage(client, message);
     });
 });
 
-function queryMessageUser(message) {
-    var query = null;
+function disconnectClient(client) {
+    clients.splice(clients.indexOf(client), 1);
 
-    if (message.anonymousNameId) {
-        query = 'SELECT name FROM anonymous_name WHERE id = ' + message.anonymousNameId + ';';
-    }
-
-    if (message.userToken) {
-        query = 'SELECT username, colorRed, colorGreen, colorBlue, MD5(email) AS gravatarHash FROM fos_user_user WHERE token = \'' + message.userToken + '\';';
-    }
-
-    runDatabaseQuery(query, extendMessage, message);
+    console.log('disconnect');
 }
 
-function extendMessage(rows, message) {
-    message.timestamp = Date.now();
+function joinClient(client, joinMessage) {
+    client.userToken = joinMessage.userToken;
+    client.anonymousNameId = joinMessage.anonymousNameId;
 
+    lookupClient(client);
+}
+
+function lookupClient(client) {
+    var query = null;
+
+    if (client.anonymousNameId) {
+        query = 'SELECT name FROM anonymous_name WHERE id = ' + client.anonymousNameId + ';';
+    }
+
+    if (client.userToken) {
+        query = 'SELECT username, colorRed, colorGreen, colorBlue, MD5(email) AS gravatarHash FROM fos_user_user WHERE token = \'' + client.userToken + '\';';
+    }
+
+    runDatabaseQuery(query, setupClient, client);
+}
+
+function setupClient(rows, client) {
     var row = rows.pop();
 
     if (row.name) {
-        message.username = row.name;
-        message.userColor = 'black';
-        message.gravatarHash = '?d=identicon&s=64';
+        client.username = row.name;
+        client.userColor = 'black';
+        client.gravatarHash = '?d=identicon&s=64';
     }
 
     if (row.username) {
-        message.username = row.username;
-        message.userColor = 'rgb(' + row.colorRed + ', ' + row.colorGreen + ', ' + row.colorBlue + ')';
-        message.gravatarHash = row.gravatarHash;
+        client.username = row.username;
+        client.userColor = 'rgb(' + row.colorRed + ', ' + row.colorGreen + ', ' + row.colorBlue + ')';
+        client.gravatarHash = row.gravatarHash;
     }
 
-    broadcastMessage(message);
+    broadcastJoinMessage(client);
+}
+
+function broadcastJoinMessage(client) {
+    var joinMessage = {
+        username: client.username,
+        dateTime: Date.now()
+    };
+
+    console.log(client.username + ' joined');
+    io.emit('joined', joinMessage);
+}
+
+function handleMessage(client, message) {
+    extendMessage(client, message);
+    broadcastMessage(client, message);
+}
+function extendMessage(client, message) {
+    message.username = client.username;
+    message.userColor = client.userColor;
+    message.timestamp = Date.now();
 }
 
 function broadcastMessage(message) {
