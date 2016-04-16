@@ -112,6 +112,7 @@ function handleMessage(socket, message) {
 
     extendMessage(socket, message);
     broadcastMessage(socket, message);
+    saveMessageToDatabase(socket, message);
 }
 
 function extendMessage(socket, message) {
@@ -125,23 +126,21 @@ function broadcastMessage(socket, message) {
     io.emit('message', message);
 }
 
-function saveMessageToDatabase(message) {
+function saveMessageToDatabase(socket, message) {
     var userpart = null;
 
-    if (message.userToken) {
-        userpart = 'user_id = (SELECT id FROM fos_user_user WHERE token = \'' + message.userToken + '\')';
+    if (socket.userToken) {
+        userpart = 'user_id = (SELECT id FROM fos_user_user WHERE token = \'' + socket.userToken + '\')';
     }
 
-    if (message.anonymousNameId) {
-        userpart = 'anonymous_name_id = ' + message.anonymousNameId;
+    if (socket.anonymousNameId) {
+        userpart = 'anonymous_name_id = ' + socket.anonymousNameId;
     }
 
     if (userpart) {
         var query = 'INSERT INTO post SET ' + userpart + ', message = \'' + message.message + '\', dateTime = NOW(), enabled = 1, chat = 1;';
 
         runDatabaseQuery(query, null);
-
-        console.log(query);
     }
 }
 
