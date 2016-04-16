@@ -106,6 +106,10 @@ function broadcastJoinMessage(socket) {
 }
 
 function handleMessage(socket, message) {
+    if (!socket.chat) {
+        return;
+    }
+
     extendMessage(socket, message);
     broadcastMessage(socket, message);
 }
