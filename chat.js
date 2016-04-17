@@ -22,7 +22,7 @@ http.listen(3000, function(){
     console.log('listening on *:3000');
 });
 
-var clients = [];
+var memberSockets = [];
 
 io.on('connection', function(socket) {
     socket.on('connect', function() {
@@ -33,13 +33,17 @@ io.on('connection', function(socket) {
         socketJoin(socket, joinMessage);
     });
 
-    /*socket.on('disconnect', function() {
+    socket.on('disconnect', function() {
         socketDisconnect(socket);
-    });*/
+    });
 
     socket.on('message', function(message) {
         handleMessage(socket, message);
     });
+
+    socket.on('memberlist', function() {
+        sendMemberlist(socket);
+    })
 });
 
 function socketConnect(socket) {
@@ -47,7 +51,7 @@ function socketConnect(socket) {
 
 }
 function socketDisconnect(socket) {
-    //clients.splice(clients.indexOf(client), 1);
+    memberSockets.splice(memberSockets.indexOf(socket), 1);
 
     console.log('Socket disconnect');
 }
@@ -55,6 +59,8 @@ function socketDisconnect(socket) {
 function socketJoin(socket, joinMessage) {
     socket.userToken = joinMessage.userToken;
     socket.anonymousNameId = joinMessage.anonymousNameId;
+
+    memberSockets.push(socket);
 
     lookupClient(socket);
 }
@@ -80,7 +86,7 @@ function setupClient(rows, socket) {
         socket.chat = {
             username: row.name,
             userColor: 'black',
-            gravatarHash: '?d=identicon&s=64'
+            gravatarHash: 'identicon'
         };
     }
 
@@ -98,10 +104,13 @@ function setupClient(rows, socket) {
 function broadcastJoinMessage(socket) {
     var joinMessage = {
         username: socket.chat.username,
+        userColor: socket.chat.userColor,
+        gravatarHash: socket.chat.gravatarHash,
         dateTime: Date.now()
     };
 
     console.log(socket.chat.username + ' joined');
+
     io.emit('joined', joinMessage);
 }
 
@@ -124,6 +133,25 @@ function extendMessage(socket, message) {
 
 function broadcastMessage(socket, message) {
     io.emit('message', message);
+}
+
+function sendMemberlist(socket) {
+    var memberlist = [];
+
+    console.log(memberSockets.length);
+    for (var index in memberSockets) {
+        console.log('FWEFWEFEWFEWF');
+        var userSocket = memberSockets[index];
+
+        memberlist.push({
+            username: userSocket.chat.username,
+            userColor: userSocket.chat.userColor,
+            gravatarHash: userSocket.chat.gravatarHash
+        });
+    }
+
+    console.log(memberlist);
+    io.to(socket.id).emit('memberlist', memberlist);
 }
 
 function saveMessageToDatabase(socket, message) {
