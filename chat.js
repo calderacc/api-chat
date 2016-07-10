@@ -51,7 +51,9 @@ function socketConnect(socket) {
 
 }
 function socketDisconnect(socket) {
-    memberSockets.splice(memberSockets.indexOf(socket), 1);
+    broadcastLeaveMessage(socket);
+
+    delete memberSockets[socket.id];
 
     console.log('Socket disconnect');
 }
@@ -60,8 +62,9 @@ function socketJoin(socket, joinMessage) {
     socket.userToken = joinMessage.userToken;
     socket.anonymousNameId = joinMessage.anonymousNameId;
 
-    memberSockets.push(socket);
+    memberSockets[socket.id] = socket;
 
+    console.log(memberSockets.length);
     lookupClient(socket);
 }
 
@@ -103,6 +106,7 @@ function setupClient(rows, socket) {
 
 function broadcastJoinMessage(socket) {
     var joinMessage = {
+        userId: stripSpecialChars(socket.id),
         username: socket.chat.username,
         userColor: socket.chat.userColor,
         gravatarHash: socket.chat.gravatarHash,
@@ -112,6 +116,20 @@ function broadcastJoinMessage(socket) {
     console.log(socket.chat.username + ' joined');
 
     io.emit('joined', joinMessage);
+}
+
+function broadcastLeaveMessage(socket) {
+    if (socket.chat) {
+        var leaveMessage = {
+            userId: stripSpecialChars(socket.id),
+            username: socket.chat.username,
+            dateTime: Date.now()
+        };
+
+        console.log(socket.chat.username + ' left');
+
+        io.emit('left', leaveMessage);
+    }
 }
 
 function handleMessage(socket, message) {
@@ -125,6 +143,7 @@ function handleMessage(socket, message) {
 }
 
 function extendMessage(socket, message) {
+    message.userId = stripSpecialChars(socket.id);
     message.username = socket.chat.username;
     message.userColor = socket.chat.userColor;
     message.gravatarHash = socket.chat.gravatarHash;
@@ -140,10 +159,10 @@ function sendMemberlist(socket) {
 
     console.log(memberSockets.length);
     for (var index in memberSockets) {
-        console.log('FWEFWEFEWFEWF');
         var userSocket = memberSockets[index];
 
         memberlist.push({
+            userId: stripSpecialChars(userSocket.id),
             username: userSocket.chat.username,
             userColor: userSocket.chat.userColor,
             gravatarHash: userSocket.chat.gravatarHash
@@ -184,4 +203,11 @@ function runDatabaseQuery(queryString, callbackFunction, argument) {
             });
         });
     });
+}
+
+function stripSpecialChars(string) {
+    string = string.replace('#', '');
+    string = string.replace('/', '');
+
+    return string;
 }
